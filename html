@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convertisseur & Fusionneur PDF / Image</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .step-indicator-item { transition: all 0.3s ease-in-out; }
+        .step-indicator-item.active .step-circle {
+            background-color: #4f46e5;
+            color: white;
+            border-color: #4f46e5;
+            transform: scale(1.1);
+        }
+        .step-indicator-item.completed .step-circle {
+            background-color: #16a34a;
+            color: white;
+            border-color: #16a34a;
+        }
+        .step-indicator-item .step-line {
+            transition: background-color 0.3s ease-in-out;
+        }
+        .step-indicator-item.completed .step-line {
+            background-color: #16a34a;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .file-list-item {
+            cursor: grab;
+        }
+        .file-list-item.dragging {
+            opacity: 0.5;
+            background: #eef2ff;
+        }
+        /* Animation pour le téléchargement */
+        .bounce-click {
+            animation: bounce 0.3s;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(0.95); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen py-8">
+
+    <div class="max-w-3xl mx-auto px-4">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800">Convertisseur de Fichiers</h1>
+            <p class="text-gray-500 mt-2">Fusionnez et convertissez PDF, JPG, PNG simplement.</p>
+        </header>
+
+        
+        <div id="step-indicator" class="mb-8 p-4 bg-white rounded-xl shadow-sm">
+            <div class="flex items-center justify-between">
+                
+                <div id="step-1" class="step-indicator-item flex flex-col items-center active">
+                    <div class="step-circle w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 bg-white text-gray-400 border-gray-300">1</div>
+                    <p class="mt-2 text-xs md:text-sm font-medium text-gray-500">Sélection</p>
+                </div>
+                <div class="step-line flex-1 h-1 mx-2 md:mx-4 bg-gray-200"></div>
+                
+                <div id="step-2" class="step-indicator-item flex flex-col items-center">
+                    <div class="step-circle w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 bg-white text-gray-400 border-gray-300">2</div>
+                    <p class="mt-2 text-xs md:text-sm font-medium text-gray-500">Options</p>
+                </div>
+                <div class="step-line flex-1 h-1 mx-2 md:mx-4 bg-gray-200"></div>
+                
+                <div id="step-3" class="step-indicator-item flex flex-col items-center">
+                    <div class="step-circle w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 bg-white text-gray-400 border-gray-300">3</div>
+                    <p class="mt-2 text-xs md:text-sm font-medium text-gray-500">Traitement</p>
+                </div>
+                <div class="step-line flex-1 h-1 mx-2 md:mx-4 bg-gray-200"></div>
+                
+                <div id="step-4" class="step-indicator-item flex flex-col items-center">
+                    <div class="step-circle w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 bg-white text-gray-400 border-gray-300">4</div>
+                    <p class="mt-2 text-xs md:text-sm font-medium text-gray-500">Télécharger</p>
+                </div>
+            </div>
+        </div>
+
+        <main id="app-container" class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+            
+        </main>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- State Management ---
+    let state = {
+        selectedFiles: [],
+        convertedFile: null,
+        failedFiles: [],
+        currentStep: 'upload',
+        settings: {
+            targetFormat: 'pdf',
+            mergeFiles: true,
+            standardizeA4: true,
+        },
+        dragActive: false,
+        isProcessing: false,
+        processingProgress: 0,
+        processingMessage: ''
+    };
+
+    // --- DOM Elements ---
+    const appContainer = document.getElementById('app-container');
+    const stepIndicator = document.getElementById('step-indicator');
+
+    // --- Templates HTML pour chaque étape ---
+    // NOTE POUR L'UTILISATEUR: J'ai modifié l'input type file ci-dessous (accept="image/*,...") pour mobile.
+    const templates = {
+        upload: `
+            <div id="drop-zone" class="text-center">
+                <div class="border-2 border-dashed rounded-2xl p-8 md:p-12 text-center transition-all duration-300 bg-gray-50 border-gray-300 hover:border-indigo-400 hover:bg-indigo-50">
+                    <div class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Glissez et déposez vos fichiers ici</h3>
+                    <p class="text-gray-500 mb-6">ou cliquez pour sélectionner depuis vos photos ou dossiers</p>
+                    <button id="select-files-btn" class="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition-colors">Choisir des fichiers / Photos</button>
+                    <!-- MODIFICATION ICI: Ajout de image/* en premier pour forcer la galerie sur mobile -->
+                    <input id="file-input" type="file" multiple accept="image/*,application/pdf,.jpg,.jpeg,.png" class="hidden" />
+                </div>
+            </div>`,
+        settings: `
+            <div class="space-y-6">
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <h3 class="text-xl font-bold text-gray-800">Fichiers (<span id="file-count">0</span>)</h3>
+                        <div id="file-list" class="space-y-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar"></div>
+                    </div>
+                    <div class="space-y-4">
+                        <h3 class="text-xl font-bold text-gray-800">Options de conversion</h3>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Convertir en :</label>
+                            <select id="target-format" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="pdf">PDF</option> <option value="jpg">JPG</option> <option value="png">PNG</option>
+                            </select>
+                        </div>
+                        <div id="pdf-options" class="space-y-2 pt-2"></div>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center pt-4 border-t border-gray-100">
+                    <button id="reset-btn" class="px-6 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors">Réinitialiser</button>
+                    <button id="start-conversion-btn" class="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition-all transform hover:scale-105">Lancer la conversion</button>
+                </div>
+            </div>`,
+        processing: `
+            <div class="text-center py-12">
+                <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                     <div id="loader" class="loader"></div>
+                </div>
+                <h3 id="processing-title" class="text-2xl font-bold text-gray-800 mb-2">Traitement en cours...</h3>
+                <p id="processing-message" class="text-gray-500 mb-4">Initialisation...</p>
+                <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                    <div id="progress-bar" class="bg-indigo-600 h-2.5 rounded-full relative" style="width: 0%; transition: width 0.3s ease-in-out;">
+                        <div class="absolute top-0 left-0 bottom-0 right-0 bg-white opacity-20 animate-pulse"></div>
+                    </div>
+                </div>
+            </div>`,
+        results: `
+            <div class="text-center py-12">
+                 <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                 </div>
+                 <h3 class="text-2xl font-bold text-gray-800 mb-2">Conversion terminée !</h3>
+                 <p id="result-message" class="text-gray-500 mb-6"></p>
+                 
+                 <div id="auto-download-msg" class="mb-4 text-sm text-indigo-600 font-medium hidden">
+                    Le téléchargement a démarré automatiquement.
+                 </div>
+
+                 <div id="failed-files-container" class="hidden mb-6 text-left bg-red-50 border border-red-200 rounded-lg p-4">
+                    <h4 class="font-bold text-red-700">Certains fichiers n'ont pas pu être traités :</h4>
+                    <ul id="failed-files-list" class="list-disc list-inside text-sm text-red-600 mt-2"></ul>
+                 </div>
+                 <div class="flex justify-center space-x-4">
+                    <button id="reset-btn-results" class="px-6 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors">Recommencer</button>
+                    <button id="download-btn" class="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 flex items-center space-x-2 transition-all transform active:scale-95">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span id="download-btn-text">Télécharger</span>
+                    </button>
+                 </div>
+             </div>`
+    };
+
+    // --- Helper Functions ---
+    const formatFileSize = (bytes) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+    
+    // --- FONCTION DE TÉLÉCHARGEMENT AMÉLIORÉE ---
+    // Cette fonction crée un élément propre dans le DOM pour garantir le clic
+    const triggerDownload = (blob, fileName) => {
+        if (!blob || !fileName) {
+            console.error("Informations de téléchargement manquantes.");
+            return;
+        }
+        
+        try {
+            // Création de l'URL
+            const url = URL.createObjectURL(blob);
+            
+            // Création de l'élément ancre
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            a.style.display = 'none';
+            
+            // IMPORTANT: Ajouter au body pour que Firefox et les mobiles le détectent bien
+            document.body.appendChild(a);
+            
+            // Clic simulé
+            a.click();
+            
+            // Nettoyage avec délai pour s'assurer que le téléchargement a démarré
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 2000); // Délai augmenté à 2s pour la sécurité
+            
+        } catch (e) {
+            console.error("Erreur lors du déclenchement du téléchargement:", e);
+            alert("Le téléchargement automatique a échoué. Veuillez cliquer sur le bouton 'Télécharger'.");
+        }
+    };
+
+    // --- Core Functions ---
+    const setState = (newState) => {
+        const oldStep = state.currentStep;
+        state = { ...state, ...newState };
+        if (oldStep !== state.currentStep) {
+            render();
+        } else {
+            updateDOM();
+        }
+    };
+
+    const render = () => {
+        appContainer.innerHTML = templates[state.currentStep];
+        bindEventListeners();
+        updateDOM();
+        
+        // Si on arrive sur la page de résultats, on déclenche le téléchargement auto
+        if (state.currentStep === 'results') {
+            handleAutoDownload();
+        }
+    };
+
+    const handleAutoDownload = async () => {
+        if (!state.convertedFile) return;
+        
+        // Petit délai pour laisser l'interface s'afficher
+        await new Promise(r => setTimeout(r, 500));
+        
+        const autoMsg = document.getElementById('auto-download-msg');
+        if (autoMsg) autoMsg.classList.remove('hidden');
+
+        if (state.convertedFile.multiDownload && Array.isArray(state.convertedFile.files)) {
+             // Téléchargement multiple auto
+             for (const file of state.convertedFile.files) {
+                triggerDownload(file.blob, file.fileName);
+                await new Promise(r => setTimeout(r, 800)); // Délai entre chaque fichier
+            }
+        } else if (state.convertedFile.blob) {
+            // Téléchargement simple auto
+            triggerDownload(state.convertedFile.blob, state.convertedFile.fileName);
+        }
+    };
+
+    const updateDOM = () => {
+        const steps = ['upload', 'settings', 'processing', 'results'];
+        const currentStepIndex = steps.indexOf(state.currentStep);
+        for (let i = 0; i < steps.length; i++) {
+            const stepEl = stepIndicator.querySelector(`#step-${i + 1}`);
+            const lineEl = stepEl.nextElementSibling;
+            stepEl.classList.toggle('active', i === currentStepIndex);
+            stepEl.classList.toggle('completed', i < currentStepIndex);
+            if (lineEl) {
+                lineEl.classList.toggle('bg-green-500', i < currentStepIndex);
+                lineEl.classList.toggle('bg-gray-200', i >= currentStepIndex);
+            }
+        }
+
+        if (state.currentStep === 'settings') {
+            document.getElementById('file-count').textContent = state.selectedFiles.length;
+            document.getElementById('target-format').value = state.settings.targetFormat;
+            renderFileList();
+            renderPdfOptions();
+        }
+        if (state.currentStep === 'processing') {
+            document.getElementById('progress-bar').style.width = `${state.processingProgress}%`;
+            document.getElementById('processing-message').textContent = state.processingMessage;
+            const loader = document.getElementById('loader');
+            if(loader) loader.classList.toggle('animate-spin', state.isProcessing);
+            document.getElementById('processing-title').textContent = state.isProcessing ? "Traitement en cours..." : "Terminé !";
+        }
+        if (state.currentStep === 'results') {
+            const resultMsg = document.getElementById('result-message');
+            const failedContainer = document.getElementById('failed-files-container');
+            const failedList = document.getElementById('failed-files-list');
+            const downloadBtn = document.getElementById('download-btn');
+
+            if(state.failedFiles.length === 0) {
+                 if (state.convertedFile && state.convertedFile.multiDownload) {
+                    resultMsg.textContent = "Vos fichiers sont prêts et le téléchargement démarre.";
+                } else {
+                    resultMsg.textContent = "Votre fichier est prêt et le téléchargement démarre.";
+                }
+                failedContainer.classList.add('hidden');
+            } else {
+                resultMsg.textContent = `Le processus est terminé. ${state.selectedFiles.length - state.failedFiles.length} fichier(s) ont été traités avec succès.`;
+                failedList.innerHTML = state.failedFiles.map(name => `<li>${name}</li>`).join('');
+                failedContainer.classList.remove('hidden');
+            }
+            
+            if(state.convertedFile) {
+                 downloadBtn.classList.remove('hidden');
+                 const label = state.convertedFile.multiDownload ? "Tout télécharger (Zip)" : "Télécharger à nouveau";
+                 // Si c'est simple, on met "Télécharger le fichier", sinon on laisse la logique
+                 if (!state.convertedFile.multiDownload) {
+                     document.getElementById('download-btn-text').textContent = "Télécharger le fichier";
+                 } else {
+                     document.getElementById('download-btn-text').textContent = "Télécharger les fichiers";
+                 }
+            } else {
+                 downloadBtn.classList.add('hidden');
+            }
+        }
+    };
+    
+    // --- Specific Render Functions ---
+    const renderFileList = () => {
+        const fileListEl = document.getElementById('file-list');
+        fileListEl.innerHTML = '';
+        state.selectedFiles.forEach((file, index) => {
+            const fileEl = document.createElement('div');
+            fileEl.className = 'file-list-item flex items-center justify-between p-3 bg-gray-50 rounded-lg border hover:shadow-sm transition-shadow';
+            fileEl.setAttribute('draggable', 'true');
+            fileEl.dataset.originalIndex = index;
+            fileEl.innerHTML = `
+                <div class="flex items-center space-x-3 overflow-hidden">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-gray-400 flex-shrink-0 cursor-grab active:cursor-grabbing"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+                    ${file.type === 'application/pdf' ? `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-600 flex-shrink-0"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>` : `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue-600 flex-shrink-0"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`}
+                    <div class="overflow-hidden">
+                        <p class="font-medium text-gray-800 truncate select-none">${file.name}</p>
+                        <p class="text-sm text-gray-500">${formatFileSize(file.size)}</p>
+                    </div>
+                </div>
+                <button data-index="${index}" class="remove-file-btn p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>`;
+            fileListEl.appendChild(fileEl);
+        });
+    };
+
+    const renderPdfOptions = () => {
+        const pdfOptionsEl = document.getElementById('pdf-options');
+        if (state.selectedFiles.length > 1 && state.settings.targetFormat === 'pdf') {
+            pdfOptionsEl.innerHTML = `
+                <label class="flex items-center space-x-2 cursor-pointer p-2 rounded hover:bg-gray-50">
+                    <input type="checkbox" id="merge-files-checkbox" class="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"/>
+                    <span class="text-gray-700">Fusionner en un seul PDF</span>
+                </label>
+                <div id="a4-option-container" class="hidden pl-6">
+                    <label class="flex items-center space-x-2 cursor-pointer p-2 rounded hover:bg-gray-50">
+                        <input type="checkbox" id="a4-checkbox" class="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"/>
+                        <span class="text-gray-700">Standardiser au format A4</span>
+                    </label>
+                </div>`;
+            document.getElementById('merge-files-checkbox').checked = state.settings.mergeFiles;
+            document.getElementById('a4-checkbox').checked = state.settings.standardizeA4;
+            document.getElementById('a4-option-container').classList.toggle('hidden', !state.settings.mergeFiles);
+        } else {
+            pdfOptionsEl.innerHTML = '';
+        }
+    };
+
+    // --- Event Handling ---
+    let draggedItem = null;
+
+    const getDragAfterElement = (container, y) => {
+        const draggableElements = [...container.querySelectorAll('.file-list-item:not(.dragging)')];
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    };
+
+    const bindEventListeners = () => {
+        if (state.currentStep === 'upload') {
+            const dropZone = document.getElementById('drop-zone');
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const dropDiv = dropZone.querySelector('div');
+                    if (eventName === 'dragenter' || eventName === 'dragover') {
+                        dropDiv.classList.add('border-indigo-500', 'bg-indigo-50', 'scale-[1.02]');
+                    } else if (eventName === 'dragleave' || eventName === 'drop') {
+                        dropDiv.classList.remove('border-indigo-500', 'bg-indigo-50', 'scale-[1.02]');
+                    }
+                    if (eventName === 'drop') handleFileDrop(e);
+                });
+            });
+        }
+        if (state.currentStep === 'settings' && state.selectedFiles.length > 1) {
+            const fileList = document.getElementById('file-list');
+            fileList.addEventListener('dragstart', e => {
+                if (e.target.closest('.file-list-item')) {
+                    draggedItem = e.target.closest('.file-list-item');
+                    setTimeout(() => draggedItem.classList.add('dragging'), 0);
+                }
+            });
+            fileList.addEventListener('dragover', e => {
+                e.preventDefault();
+                const afterElement = getDragAfterElement(fileList, e.clientY);
+                if (draggedItem) {
+                    if (afterElement == null) {
+                        fileList.appendChild(draggedItem);
+                    } else {
+                        fileList.insertBefore(draggedItem, afterElement);
+                    }
+                }
+            });
+            fileList.addEventListener('dragend', () => {
+                if (draggedItem) {
+                    draggedItem.classList.remove('dragging');
+                    draggedItem = null;
+                }
+                // Update state order
+                const newFileOrder = [];
+                fileList.querySelectorAll('.file-list-item').forEach(item => {
+                    const originalIndex = parseInt(item.dataset.originalIndex, 10);
+                    newFileOrder.push(state.selectedFiles[originalIndex]);
+                });
+                // Update state silently without re-rendering full list to keep DOM stable
+                state.selectedFiles = newFileOrder;
+            });
+        }
+        appContainer.addEventListener('click', handleAppClick);
+        appContainer.addEventListener('change', handleAppChange);
+    };
+
+    const handleAppClick = (e) => {
+        const target = e.target;
+        
+        // File Selection
+        if (target.id === 'select-files-btn') document.getElementById('file-input').click();
+        
+        // Reset
+        if (target.id === 'reset-btn' || target.id === 'reset-btn-results') resetApp();
+        
+        // Conversion
+        if (target.id === 'start-conversion-btn') startConversion();
+        
+        // Download (Manuel)
+        if (target.closest('#download-btn')) {
+            const btn = target.closest('#download-btn');
+            btn.classList.add('bounce-click');
+            setTimeout(() => btn.classList.remove('bounce-click'), 300);
+            
+            if (state.convertedFile) {
+                if (state.convertedFile.multiDownload && Array.isArray(state.convertedFile.files)) {
+                     state.convertedFile.files.forEach((f, i) => {
+                         setTimeout(() => triggerDownload(f.blob, f.fileName), i * 500);
+                     });
+                } else if (state.convertedFile.blob) {
+                    triggerDownload(state.convertedFile.blob, state.convertedFile.fileName);
+                }
+            }
+        }
+        
+        // Remove file
+        const removeBtn = target.closest('.remove-file-btn');
+        if (removeBtn) {
+            removeFile(parseInt(removeBtn.dataset.index, 10));
+        }
+    };
+
+    const handleAppChange = (e) => {
+        const target = e.target;
+        if (target.id === 'file-input') handleFileInput(e);
+        if (['target-format', 'merge-files-checkbox', 'a4-checkbox'].includes(target.id)) {
+            handleSettingsChange(e);
+        }
+    };
+
+    const handleFileDrop = (e) => {
+        const droppedFiles = Array.from(e.dataTransfer.files).filter(f => f.type === "application/pdf" || f.type.startsWith("image/"));
+        if (droppedFiles.length > 0) addFiles(droppedFiles);
+    };
+    
+    const handleFileInput = (e) => {
+        const newFiles = Array.from(e.target.files).filter(f => f.type === "application/pdf" || f.type.startsWith("image/"));
+        if (newFiles.length > 0) addFiles(newFiles);
+        e.target.value = '';
+    };
+
+    const addFiles = (newFiles) => {
+        const updatedFiles = [...state.selectedFiles, ...newFiles];
+        setState({ selectedFiles: updatedFiles, currentStep: 'settings' });
+    };
+    
+    const removeFile = (indexToRemove) => {
+        const newFiles = state.selectedFiles.filter((_, i) => i !== indexToRemove);
+        const nextStep = newFiles.length > 0 ? 'settings' : 'upload';
+        setState({ selectedFiles: newFiles, currentStep: nextStep });
+    };
+    
+    const handleSettingsChange = (e) => {
+        const target = e.target;
+        let newSettings = { ...state.settings };
+        if (target.id === 'target-format') newSettings.targetFormat = target.value;
+        if (target.id === 'merge-files-checkbox') newSettings.mergeFiles = target.checked;
+        if (target.id === 'a4-checkbox') newSettings.standardizeA4 = target.checked;
+        setState({ settings: newSettings });
+    };
+
+    const resetApp = () => {
+        setState({
+            selectedFiles: [],
+            convertedFile: null,
+            failedFiles: [],
+            currentStep: 'upload',
+            settings: { targetFormat: 'pdf', mergeFiles: true, standardizeA4: true },
+        });
+    };
+
+    // --- Conversion Logic ---
+    const startConversion = async () => {
+        setState({ isProcessing: true, currentStep: 'processing', processingMessage: 'Initialisation...', failedFiles: [] });
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        try {
+            if (!window.PDFLib || !window.pdfjsLib) {
+                throw new Error("Bibliothèques externes non chargées. Actualisez la page.");
+            }
+            if (window.pdfjsLib.GlobalWorkerOptions.workerSrc === '') {
+                window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+            }
+            
+            const { targetFormat, mergeFiles } = state.settings;
+
+            // MODIFICATION ICI: Correction de la logique de routage
+            const isSingleFile = state.selectedFiles.length === 1;
+            let isPdfToImage = false;
+            
+            if (isSingleFile) {
+                const file = state.selectedFiles[0];
+                const ext = file.name.split('.').pop().toLowerCase();
+                // Si c'est un PDF et qu'on veut une image, cela génère potentiellement plusieurs images (pages)
+                // Donc on ne doit pas utiliser processSingleOutput
+                if (ext === 'pdf' && targetFormat !== 'pdf') {
+                    isPdfToImage = true;
+                }
+            }
+
+            // On utilise processSingleOutput si :
+            // 1. On fusionne plusieurs fichiers en un seul PDF.
+            // 2. C'est un fichier unique, MAIS ce n'est pas un PDF vers Image.
+            const isMerging = (!isSingleFile && targetFormat === 'pdf' && mergeFiles);
+            
+            if ((isSingleFile && !isPdfToImage) || isMerging) {
+                await processSingleOutput();
+            } else {
+                await processMultipleOutputs();
+            }
+
+            setState({ processingMessage: 'Conversion terminée !', processingProgress: 100, isProcessing: false });
+            // On attend un tout petit peu avant d'afficher les résultats pour que l'utilisateur voit le 100%
+            setTimeout(() => setState({ currentStep: 'results' }), 800);
+        } catch (error) {
+            console.error('Erreur:', error);
+            setState({ processingMessage: `Erreur: ${error.message}`, isProcessing: false });
+        }
+    };
+
+    async function processSingleOutput() {
+        const { PDFDocument } = window.PDFLib;
+        const pdfjsLib = window.pdfjsLib;
+        let localFailedFiles = [];
+        let singleResult = null;
+        
+        setState({ processingProgress: 50, processingMessage: `Traitement en cours...` });
+        
+        try {
+            if (state.settings.targetFormat === 'pdf' && state.settings.mergeFiles && state.selectedFiles.length > 1) {
+                // Merging multiple files
+                const finalPdfDoc = await PDFDocument.create();
+                const A4_WIDTH = 595.28, A4_HEIGHT = 841.89;
+                for (let i = 0; i < state.selectedFiles.length; i++) {
+                    const file = state.selectedFiles[i];
+                    const fileBytes = await file.arrayBuffer();
+                    const fileType = file.name.split('.').pop().toLowerCase();
+                    if (fileType === 'pdf') {
+                        const pdfToMerge = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
+                        const indices = pdfToMerge.getPageIndices();
+                        for (const index of indices) {
+                            const [embeddedPage] = await finalPdfDoc.embedPdf(pdfToMerge, [index]);
+                            if (embeddedPage && embeddedPage.width > 0 && embeddedPage.height > 0) {
+                               const newPage = finalPdfDoc.addPage(state.settings.standardizeA4 ? [A4_WIDTH, A4_HEIGHT] : [embeddedPage.width, embeddedPage.height]);
+                                const ratio = Math.min(A4_WIDTH / embeddedPage.width, A4_HEIGHT / embeddedPage.height);
+                                newPage.drawPage(embeddedPage, { x: state.settings.standardizeA4 ? (A4_WIDTH - embeddedPage.width * ratio) / 2 : 0, y: state.settings.standardizeA4 ? (A4_HEIGHT - embeddedPage.height * ratio) / 2 : 0, width: state.settings.standardizeA4 ? embeddedPage.width * ratio : embeddedPage.width, height: state.settings.standardizeA4 ? embeddedPage.height * ratio : embeddedPage.height });
+                            }
+                        }
+                    } else {
+                        const image = ['png'].includes(fileType) ? await finalPdfDoc.embedPng(fileBytes) : await finalPdfDoc.embedJpg(fileBytes);
+                        if (image.width > 0 && image.height > 0) {
+                            const newPage = finalPdfDoc.addPage(state.settings.standardizeA4 ? [A4_WIDTH, A4_HEIGHT] : [image.width, image.height]);
+                            const ratio = Math.min(A4_WIDTH / image.width, A4_HEIGHT / image.height);
+                            newPage.drawImage(image, { x: state.settings.standardizeA4 ? (A4_WIDTH - image.width * ratio) / 2 : 0, y: state.settings.standardizeA4 ? (A4_HEIGHT - image.height * ratio) / 2 : 0, width: state.settings.standardizeA4 ? image.width * ratio : image.width, height: state.settings.standardizeA4 ? image.height * ratio : image.height });
+                        }
+                    }
+                }
+                if (finalPdfDoc.getPageCount() === 0) throw new Error("Aucun fichier valide n'a pu être traité.");
+                const pdfBytes = await finalPdfDoc.save();
+                singleResult = { blob: new Blob([pdfBytes], { type: 'application/pdf' }), fileName: 'document_fusionne.pdf' };
+            } else { // Single file conversion
+                const file = state.selectedFiles[0];
+                const fileBytes = await file.arrayBuffer();
+                const fileType = file.name.split('.').pop().toLowerCase().replace('jpeg','jpg');
+                const baseName = file.name.replace(/\.[^/.]+$/, "");
+
+                if (state.settings.targetFormat === 'pdf') {
+                    if (fileType === 'pdf') {
+                        singleResult = { blob: new Blob([fileBytes], {type: 'application/pdf'}), fileName: file.name};
+                    } else {
+                        const pdfDoc = await PDFDocument.create();
+                        const image = (fileType === 'png') ? await pdfDoc.embedPng(fileBytes) : await pdfDoc.embedJpg(fileBytes);
+                        if(image.width > 0 && image.height > 0) {
+                            pdfDoc.addPage([image.width, image.height]).drawImage(image);
+                            const pdfBytes = await pdfDoc.save();
+                            singleResult = { blob: new Blob([pdfBytes], {type: 'application/pdf'}), fileName: `${baseName}.pdf`};
+                        }
+                    }
+                } else { // Target is Image
+                    const mimeType = `image/${state.settings.targetFormat === 'jpg' ? 'jpeg' : 'png'}`;
+                    if (fileType === 'pdf') { // This case should be handled by multi-download logic
+                         // Fallback just in case
+                        throw new Error("PDF vers Image est traité comme un traitement multiple.");
+                    } else { // Image to Image
+                        let blob;
+                        let fileName = `${baseName}.${state.settings.targetFormat}`;
+                        if (fileType === state.settings.targetFormat) {
+                            blob = new Blob([fileBytes], {type: file.type});
+                            fileName = file.name;
+                        } else {
+                            const imgBlob = new Blob([fileBytes], { type: file.type });
+                            const img = await new Promise((r,j)=>{let i=new Image();i.onload=()=>r(i);i.onerror=j;i.src=URL.createObjectURL(imgBlob);});
+                            URL.revokeObjectURL(img.src);
+                            const canvas = document.createElement('canvas');
+                            canvas.width = img.width; canvas.height = img.height;
+                            const ctx = canvas.getContext('2d');
+                            if (state.settings.targetFormat === 'jpg' && fileType === 'png') {
+                                ctx.fillStyle = '#FFFFFF';
+                                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            }
+                            ctx.drawImage(img, 0, 0);
+                            blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, 0.9));
+                        }
+                        singleResult = { blob, fileName };
+                    }
+                }
+            }
+        } catch(err) {
+            console.error(err);
+            localFailedFiles.push(state.selectedFiles.map(f => f.name).join(', '));
+        }
+        
+        setState({ failedFiles: localFailedFiles });
+        if (!singleResult) throw new Error("Le fichier n'a pas pu être traité.");
+        setState({ convertedFile: singleResult });
+    }
+
+    // Revised to prepare files for download rather than triggering immediately inside the loop
+    async function processMultipleOutputs() {
+        const { PDFDocument } = window.PDFLib;
+        const pdfjsLib = window.pdfjsLib;
+        let localFailedFiles = [];
+        let preparedFiles = [];
+
+        for (let i = 0; i < state.selectedFiles.length; i++) {
+            const file = state.selectedFiles[i];
+            setState({ processingProgress: Math.round(((i + 1) / state.selectedFiles.length) * 95), processingMessage: `Conversion de ${file.name}...` });
+            try {
+                const fileBytes = await file.arrayBuffer();
+                const fileType = file.name.split('.').pop().toLowerCase().replace('jpeg', 'jpg');
+                const baseName = file.name.replace(/\.[^/.]+$/, "");
+                
+                if (state.settings.targetFormat === 'pdf') {
+                    if (fileType === 'pdf') {
+                         preparedFiles.push({blob: new Blob([fileBytes], {type: 'application/pdf'}), fileName: file.name});
+                    } else { // Image to PDF
+                        const pdfDoc = await PDFDocument.create();
+                        const image = (fileType === 'png') ? await pdfDoc.embedPng(fileBytes) : await pdfDoc.embedJpg(fileBytes);
+                        if(image.width > 0 && image.height > 0) {
+                            pdfDoc.addPage([image.width, image.height]).drawImage(image);
+                            const data = await pdfDoc.save();
+                            preparedFiles.push({blob: new Blob([data], {type: 'application/pdf'}), fileName: `${baseName}.pdf`});
+                        }
+                    }
+                } else { // Target is JPG or PNG
+                    const mimeType = `image/${state.settings.targetFormat === 'jpg' ? 'jpeg' : 'png'}`;
+                    if (fileType === 'pdf') {
+                        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(fileBytes) }).promise;
+                        for (let p = 1; p <= pdf.numPages; p++) {
+                            const page = await pdf.getPage(p);
+                            const viewport = page.getViewport({ scale: 2.0 });
+                            const canvas = document.createElement('canvas');
+                            canvas.height = viewport.height; canvas.width = viewport.width;
+                            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                            const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, 0.9));
+                            preparedFiles.push({ blob, fileName: `${baseName}_page_${p}.${state.settings.targetFormat}`});
+                        }
+                    } else { // Image to Image
+                        let blob;
+                        let fileName = `${baseName}.${state.settings.targetFormat}`;
+                        if (fileType === state.settings.targetFormat) {
+                            blob = new Blob([fileBytes], {type: file.type});
+                            fileName = file.name;
+                        } else {
+                            const imgBlob = new Blob([fileBytes], { type: file.type });
+                            const img = await new Promise((r,j)=>{let i = new Image(); i.onload=()=>r(i); i.onerror=j; i.src=URL.createObjectURL(imgBlob);});
+                            URL.revokeObjectURL(img.src);
+                            const canvas = document.createElement('canvas');
+                            canvas.width = img.width; canvas.height = img.height;
+                            const ctx = canvas.getContext('2d');
+                            if (state.settings.targetFormat === 'jpg' && fileType === 'png') {
+                                ctx.fillStyle = '#FFFFFF';
+                                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            }
+                            ctx.drawImage(img, 0, 0);
+                            blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, 0.9));
+                        }
+                        preparedFiles.push({blob, fileName});
+                    }
+                }
+            } catch (err) { console.error(err); localFailedFiles.push(file.name); }
+        }
+        
+        setState({ failedFiles: localFailedFiles });
+
+        if (preparedFiles.length === 0 && localFailedFiles.length === state.selectedFiles.length) {
+            throw new Error("Aucun fichier valide n'a pu être traité.");
+        }
+        
+        // Store prepared files to be downloaded in the Result step
+        setState({ convertedFile: { multiDownload: true, files: preparedFiles } });
+    }
+
+    // --- Initial Render ---
+    render();
+});
+</script>
+</body>
+</html>
