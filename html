@@ -1,18 +1,18 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Convertisseur & Fusionneur PDF / Image</title>
+<meta charset="UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Convertisseur &amp; Fusionneur PDF / Image</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js" defer></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js" defer=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js" defer=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js" defer=""></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        /* Force la police pour éviter les conflits avec le thème Odoo */
+        .custom-app-wrapper { font-family: 'Inter', sans-serif; }
+        
         .step-indicator-item { transition: all 0.3s ease-in-out; }
         .step-indicator-item.active .step-circle {
             background-color: #4f46e5;
@@ -43,61 +43,60 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .file-list-item {
-            cursor: grab;
-        }
-        .file-list-item.dragging {
-            opacity: 0.5;
-            background: #eef2ff;
-        }
-        /* Animation pour le téléchargement */
-        .bounce-click {
-            animation: bounce 0.3s;
-        }
+        .file-list-item { cursor: grab; }
+        .file-list-item.dragging { opacity: 0.5; background: #eef2ff; }
+        .bounce-click { animation: bounce 0.3s; }
         @keyframes bounce {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(0.95); }
         }
+        /* Scrollbar personnalisée pour la liste de fichiers */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
     </style>
-</head>
-<body class="bg-gray-50 min-h-screen py-8">
 
-    <div class="max-w-3xl mx-auto px-4">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-800">Convertisseur de Fichiers</h1>
-            <p class="text-gray-500 mt-2">Fusionnez et convertissez PDF, JPG, PNG simplement.</p>
+
+
+    
+    <div class="w-full max-w-3xl mx-auto px-2 md:px-4">
+        <header class="text-center mb-6 md:mb-8">
+            
+            <h1 class="text-2xl md:text-4xl font-bold text-gray-800">Convertisseur de Fichiers</h1>
+            <p class="text-sm md:text-base text-gray-500 mt-2">Fusionnez et convertissez PDF, JPG, PNG simplement.</p>
         </header>
 
         
-        <div id="step-indicator" class="mb-8 p-4 bg-white rounded-xl shadow-sm">
+        <div id="step-indicator" class="mb-6 p-2 md:p-4 bg-white rounded-xl shadow-sm overflow-hidden">
             <div class="flex items-center justify-between">
                 
                 <div id="step-1" class="step-indicator-item flex flex-col items-center active">
-                    <div class="step-circle w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 bg-white text-gray-400 border-gray-300">1</div>
-                    <p class="mt-2 text-xs md:text-sm font-medium text-gray-500">Sélection</p>
+                    <div class="step-circle w-8 h-8 md:w-10 md:h-10 text-sm md:text-base rounded-full flex items-center justify-center font-bold border-2 bg-white text-gray-400 border-gray-300">1</div>
+                    <p class="mt-1 md:mt-2 text-[10px] md:text-sm font-medium text-gray-500">Choix</p>
                 </div>
-                <div class="step-line flex-1 h-1 mx-2 md:mx-4 bg-gray-200"></div>
+                <div class="step-line flex-1 h-1 mx-1 md:mx-4 bg-gray-200"></div>
                 
                 <div id="step-2" class="step-indicator-item flex flex-col items-center">
-                    <div class="step-circle w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 bg-white text-gray-400 border-gray-300">2</div>
-                    <p class="mt-2 text-xs md:text-sm font-medium text-gray-500">Options</p>
+                    <div class="step-circle w-8 h-8 md:w-10 md:h-10 text-sm md:text-base rounded-full flex items-center justify-center font-bold border-2 bg-white text-gray-400 border-gray-300">2</div>
+                    <p class="mt-1 md:mt-2 text-[10px] md:text-sm font-medium text-gray-500">Options</p>
                 </div>
-                <div class="step-line flex-1 h-1 mx-2 md:mx-4 bg-gray-200"></div>
+                <div class="step-line flex-1 h-1 mx-1 md:mx-4 bg-gray-200"></div>
                 
                 <div id="step-3" class="step-indicator-item flex flex-col items-center">
-                    <div class="step-circle w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 bg-white text-gray-400 border-gray-300">3</div>
-                    <p class="mt-2 text-xs md:text-sm font-medium text-gray-500">Traitement</p>
+                    <div class="step-circle w-8 h-8 md:w-10 md:h-10 text-sm md:text-base rounded-full flex items-center justify-center font-bold border-2 bg-white text-gray-400 border-gray-300">3</div>
+                    <p class="mt-1 md:mt-2 text-[10px] md:text-sm font-medium text-gray-500">Traitement</p>
                 </div>
-                <div class="step-line flex-1 h-1 mx-2 md:mx-4 bg-gray-200"></div>
+                <div class="step-line flex-1 h-1 mx-1 md:mx-4 bg-gray-200"></div>
                 
                 <div id="step-4" class="step-indicator-item flex flex-col items-center">
-                    <div class="step-circle w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 bg-white text-gray-400 border-gray-300">4</div>
-                    <p class="mt-2 text-xs md:text-sm font-medium text-gray-500">Télécharger</p>
+                    <div class="step-circle w-8 h-8 md:w-10 md:h-10 text-sm md:text-base rounded-full flex items-center justify-center font-bold border-2 bg-white text-gray-400 border-gray-300">4</div>
+                    <p class="mt-1 md:mt-2 text-[10px] md:text-sm font-medium text-gray-500">Fin</p>
                 </div>
             </div>
         </div>
 
-        <main id="app-container" class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+        <main id="app-container" class="bg-white rounded-2xl shadow-lg p-4 md:p-8 w-full">
             
         </main>
     </div>
@@ -126,52 +125,59 @@ document.addEventListener('DOMContentLoaded', () => {
     const appContainer = document.getElementById('app-container');
     const stepIndicator = document.getElementById('step-indicator');
 
-    // --- Templates HTML pour chaque étape ---
-    // NOTE POUR L'UTILISATEUR: J'ai modifié l'input type file ci-dessous (accept="image/*,...") pour mobile.
+    // --- Templates HTML ---
     const templates = {
         upload: `
             <div id="drop-zone" class="text-center">
-                <div class="border-2 border-dashed rounded-2xl p-8 md:p-12 text-center transition-all duration-300 bg-gray-50 border-gray-300 hover:border-indigo-400 hover:bg-indigo-50">
-                    <div class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <div class="border-2 border-dashed rounded-2xl p-6 md:p-12 text-center transition-all duration-300 bg-gray-50 border-gray-300 hover:border-indigo-400 hover:bg-indigo-50 cursor-pointer">
+                    <div class="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Glissez et déposez vos fichiers ici</h3>
-                    <p class="text-gray-500 mb-6">ou cliquez pour sélectionner depuis vos photos ou dossiers</p>
-                    <button id="select-files-btn" class="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition-colors">Choisir des fichiers / Photos</button>
-                    <!-- MODIFICATION ICI: Ajout de image/* en premier pour forcer la galerie sur mobile -->
+                    <h3 class="text-lg md:text-2xl font-bold text-gray-800 mb-2">Ajouter des fichiers</h3>
+                    <p class="text-sm md:text-base text-gray-500 mb-6">Cliquez ou déposez vos fichiers ici</p>
+                    
+                    <!-- Bouton pleine largeur sur mobile (w-full) -->
+                    <button id="select-files-btn" class="w-full md:w-auto px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition-colors active:scale-95">
+                        Choisir Fichiers / Photos
+                    </button>
                     <input id="file-input" type="file" multiple accept="image/*,application/pdf,.jpg,.jpeg,.png" class="hidden" />
                 </div>
             </div>`,
         settings: `
             <div class="space-y-6">
-                <div class="grid md:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-4">
-                        <h3 class="text-xl font-bold text-gray-800">Fichiers (<span id="file-count">0</span>)</h3>
-                        <div id="file-list" class="space-y-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar"></div>
+                        <h3 class="text-lg md:text-xl font-bold text-gray-800">Fichiers (<span id="file-count">0</span>)</h3>
+                        <div id="file-list" class="space-y-2 max-h-60 md:max-h-96 overflow-y-auto pr-1 custom-scrollbar"></div>
                     </div>
                     <div class="space-y-4">
-                        <h3 class="text-xl font-bold text-gray-800">Options de conversion</h3>
+                        <h3 class="text-lg md:text-xl font-bold text-gray-800">Options</h3>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Convertir en :</label>
-                            <select id="target-format" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="pdf">PDF</option> <option value="jpg">JPG</option> <option value="png">PNG</option>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Format de sortie :</label>
+                            <select id="target-format" class="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
+                                <option value="pdf">PDF (Document)</option> 
+                                <option value="jpg">JPG (Image)</option> 
+                                <option value="png">PNG (Image)</option>
                             </select>
                         </div>
                         <div id="pdf-options" class="space-y-2 pt-2"></div>
                     </div>
                 </div>
-                <div class="flex justify-between items-center pt-4 border-t border-gray-100">
-                    <button id="reset-btn" class="px-6 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors">Réinitialiser</button>
-                    <button id="start-conversion-btn" class="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition-all transform hover:scale-105">Lancer la conversion</button>
+                <!-- Boutons empilés sur mobile (flex-col-reverse) -->
+                <div class="flex flex-col-reverse md:flex-row justify-between items-center pt-4 border-t border-gray-100 gap-3">
+                    <button id="reset-btn" class="w-full md:w-auto px-6 py-3 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors">Réinitialiser</button>
+                    <button id="start-conversion-btn" class="w-full md:w-auto px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition-all transform hover:scale-105 active:scale-95">
+                        Lancer la conversion
+                    </button>
                 </div>
             </div>`,
         processing: `
-            <div class="text-center py-12">
+            <div class="text-center py-8 md:py-12">
                 <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
                      <div id="loader" class="loader"></div>
                 </div>
-                <h3 id="processing-title" class="text-2xl font-bold text-gray-800 mb-2">Traitement en cours...</h3>
-                <p id="processing-message" class="text-gray-500 mb-4">Initialisation...</p>
+                <h3 id="processing-title" class="text-xl md:text-2xl font-bold text-gray-800 mb-2">Traitement en cours...</h3>
+                <p id="processing-message" class="text-sm md:text-base text-gray-500 mb-4">Initialisation...</p>
                 <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
                     <div id="progress-bar" class="bg-indigo-600 h-2.5 rounded-full relative" style="width: 0%; transition: width 0.3s ease-in-out;">
                         <div class="absolute top-0 left-0 bottom-0 right-0 bg-white opacity-20 animate-pulse"></div>
@@ -179,27 +185,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>`,
         results: `
-            <div class="text-center py-12">
+            <div class="text-center py-8 md:py-12">
                  <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                  </div>
-                 <h3 class="text-2xl font-bold text-gray-800 mb-2">Conversion terminée !</h3>
-                 <p id="result-message" class="text-gray-500 mb-6"></p>
+                 <h3 class="text-xl md:text-2xl font-bold text-gray-800 mb-2">Terminé !</h3>
+                 <p id="result-message" class="text-sm md:text-base text-gray-500 mb-6"></p>
                  
-                 <div id="auto-download-msg" class="mb-4 text-sm text-indigo-600 font-medium hidden">
-                    Le téléchargement a démarré automatiquement.
+                 <div id="auto-download-msg" class="mb-4 text-sm text-indigo-600 font-medium hidden animate-pulse">
+                    Le téléchargement démarre...
                  </div>
 
                  <div id="failed-files-container" class="hidden mb-6 text-left bg-red-50 border border-red-200 rounded-lg p-4">
-                    <h4 class="font-bold text-red-700">Certains fichiers n'ont pas pu être traités :</h4>
-                    <ul id="failed-files-list" class="list-disc list-inside text-sm text-red-600 mt-2"></ul>
+                    <h4 class="font-bold text-red-700 text-sm">Erreurs sur certains fichiers :</h4>
+                    <ul id="failed-files-list" class="list-disc list-inside text-xs md:text-sm text-red-600 mt-2"></ul>
                  </div>
-                 <div class="flex justify-center space-x-4">
-                    <button id="reset-btn-results" class="px-6 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors">Recommencer</button>
-                    <button id="download-btn" class="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 flex items-center space-x-2 transition-all transform active:scale-95">
+                 
+                 <div class="flex flex-col md:flex-row justify-center gap-3">
+                    <button id="download-btn" class="w-full md:w-auto px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 flex items-center justify-center space-x-2 transition-all transform active:scale-95">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         <span id="download-btn-text">Télécharger</span>
                     </button>
+                    <button id="reset-btn-results" class="w-full md:w-auto px-6 py-3 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors">Recommencer</button>
                  </div>
              </div>`
     };
@@ -213,39 +220,27 @@ document.addEventListener('DOMContentLoaded', () => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
     
-    // --- FONCTION DE TÉLÉCHARGEMENT AMÉLIORÉE ---
-    // Cette fonction crée un élément propre dans le DOM pour garantir le clic
     const triggerDownload = (blob, fileName) => {
         if (!blob || !fileName) {
             console.error("Informations de téléchargement manquantes.");
             return;
         }
-        
         try {
-            // Création de l'URL
             const url = URL.createObjectURL(blob);
-            
-            // Création de l'élément ancre
             const a = document.createElement('a');
             a.href = url;
             a.download = fileName;
+            a.target = '_blank'; // Sécurité pour ne pas quitter Odoo
             a.style.display = 'none';
-            
-            // IMPORTANT: Ajouter au body pour que Firefox et les mobiles le détectent bien
             document.body.appendChild(a);
-            
-            // Clic simulé
             a.click();
-            
-            // Nettoyage avec délai pour s'assurer que le téléchargement a démarré
             setTimeout(() => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-            }, 2000); // Délai augmenté à 2s pour la sécurité
-            
+            }, 2000);
         } catch (e) {
-            console.error("Erreur lors du déclenchement du téléchargement:", e);
-            alert("Le téléchargement automatique a échoué. Veuillez cliquer sur le bouton 'Télécharger'.");
+            console.error("Erreur DL:", e);
+            alert("Erreur de téléchargement. Cliquez sur le bouton.");
         }
     };
 
@@ -264,8 +259,6 @@ document.addEventListener('DOMContentLoaded', () => {
         appContainer.innerHTML = templates[state.currentStep];
         bindEventListeners();
         updateDOM();
-        
-        // Si on arrive sur la page de résultats, on déclenche le téléchargement auto
         if (state.currentStep === 'results') {
             handleAutoDownload();
         }
@@ -273,21 +266,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const handleAutoDownload = async () => {
         if (!state.convertedFile) return;
-        
-        // Petit délai pour laisser l'interface s'afficher
         await new Promise(r => setTimeout(r, 500));
-        
         const autoMsg = document.getElementById('auto-download-msg');
         if (autoMsg) autoMsg.classList.remove('hidden');
 
         if (state.convertedFile.multiDownload && Array.isArray(state.convertedFile.files)) {
-             // Téléchargement multiple auto
              for (const file of state.convertedFile.files) {
                 triggerDownload(file.blob, file.fileName);
-                await new Promise(r => setTimeout(r, 800)); // Délai entre chaque fichier
+                await new Promise(r => setTimeout(r, 1000));
             }
         } else if (state.convertedFile.blob) {
-            // Téléchargement simple auto
             triggerDownload(state.convertedFile.blob, state.convertedFile.fileName);
         }
     };
@@ -317,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('processing-message').textContent = state.processingMessage;
             const loader = document.getElementById('loader');
             if(loader) loader.classList.toggle('animate-spin', state.isProcessing);
-            document.getElementById('processing-title').textContent = state.isProcessing ? "Traitement en cours..." : "Terminé !";
+            document.getElementById('processing-title').textContent = state.isProcessing ? "Traitement..." : "Terminé !";
         }
         if (state.currentStep === 'results') {
             const resultMsg = document.getElementById('result-message');
@@ -327,25 +315,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if(state.failedFiles.length === 0) {
                  if (state.convertedFile && state.convertedFile.multiDownload) {
-                    resultMsg.textContent = "Vos fichiers sont prêts et le téléchargement démarre.";
+                    resultMsg.textContent = "Téléchargement des fichiers...";
                 } else {
-                    resultMsg.textContent = "Votre fichier est prêt et le téléchargement démarre.";
+                    resultMsg.textContent = "Téléchargement du fichier...";
                 }
                 failedContainer.classList.add('hidden');
             } else {
-                resultMsg.textContent = `Le processus est terminé. ${state.selectedFiles.length - state.failedFiles.length} fichier(s) ont été traités avec succès.`;
+                resultMsg.textContent = `${state.selectedFiles.length - state.failedFiles.length} réussi(s).`;
                 failedList.innerHTML = state.failedFiles.map(name => `<li>${name}</li>`).join('');
                 failedContainer.classList.remove('hidden');
             }
             
             if(state.convertedFile) {
                  downloadBtn.classList.remove('hidden');
-                 const label = state.convertedFile.multiDownload ? "Tout télécharger (Zip)" : "Télécharger à nouveau";
-                 // Si c'est simple, on met "Télécharger le fichier", sinon on laisse la logique
                  if (!state.convertedFile.multiDownload) {
-                     document.getElementById('download-btn-text').textContent = "Télécharger le fichier";
+                     document.getElementById('download-btn-text').textContent = "Télécharger";
                  } else {
-                     document.getElementById('download-btn-text').textContent = "Télécharger les fichiers";
+                     document.getElementById('download-btn-text').textContent = "Tout Télécharger";
                  }
             } else {
                  downloadBtn.classList.add('hidden');
@@ -353,22 +339,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // --- Specific Render Functions ---
     const renderFileList = () => {
         const fileListEl = document.getElementById('file-list');
         fileListEl.innerHTML = '';
         state.selectedFiles.forEach((file, index) => {
             const fileEl = document.createElement('div');
-            fileEl.className = 'file-list-item flex items-center justify-between p-3 bg-gray-50 rounded-lg border hover:shadow-sm transition-shadow';
+            fileEl.className = 'file-list-item flex items-center justify-between p-2 md:p-3 bg-gray-50 rounded-lg border hover:shadow-sm transition-shadow mb-2';
             fileEl.setAttribute('draggable', 'true');
             fileEl.dataset.originalIndex = index;
             fileEl.innerHTML = `
-                <div class="flex items-center space-x-3 overflow-hidden">
-                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-gray-400 flex-shrink-0 cursor-grab active:cursor-grabbing"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
-                    ${file.type === 'application/pdf' ? `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-600 flex-shrink-0"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>` : `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue-600 flex-shrink-0"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`}
-                    <div class="overflow-hidden">
-                        <p class="font-medium text-gray-800 truncate select-none">${file.name}</p>
-                        <p class="text-sm text-gray-500">${formatFileSize(file.size)}</p>
+                <div class="flex items-center space-x-2 md:space-x-3 overflow-hidden">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-gray-400 flex-shrink-0"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+                    ${file.type === 'application/pdf' ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-600 flex-shrink-0"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>` : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue-600 flex-shrink-0"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`}
+                    <div class="overflow-hidden flex-1">
+                        <p class="font-medium text-gray-800 truncate text-sm md:text-base select-none">${file.name}</p>
+                        <p class="text-xs text-gray-500">${formatFileSize(file.size)}</p>
                     </div>
                 </div>
                 <button data-index="${index}" class="remove-file-btn p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors">
@@ -382,14 +367,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const pdfOptionsEl = document.getElementById('pdf-options');
         if (state.selectedFiles.length > 1 && state.settings.targetFormat === 'pdf') {
             pdfOptionsEl.innerHTML = `
-                <label class="flex items-center space-x-2 cursor-pointer p-2 rounded hover:bg-gray-50">
+                <label class="flex items-center space-x-3 cursor-pointer p-3 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
                     <input type="checkbox" id="merge-files-checkbox" class="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"/>
-                    <span class="text-gray-700">Fusionner en un seul PDF</span>
+                    <span class="text-sm font-medium text-gray-700">Fusionner en 1 seul PDF</span>
                 </label>
-                <div id="a4-option-container" class="hidden pl-6">
-                    <label class="flex items-center space-x-2 cursor-pointer p-2 rounded hover:bg-gray-50">
+                <div id="a4-option-container" class="hidden mt-2">
+                    <label class="flex items-center space-x-3 cursor-pointer p-3 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
                         <input type="checkbox" id="a4-checkbox" class="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"/>
-                        <span class="text-gray-700">Standardiser au format A4</span>
+                        <span class="text-sm font-medium text-gray-700">Forcer format A4</span>
                     </label>
                 </div>`;
             document.getElementById('merge-files-checkbox').checked = state.settings.mergeFiles;
@@ -419,6 +404,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const bindEventListeners = () => {
         if (state.currentStep === 'upload') {
             const dropZone = document.getElementById('drop-zone');
+            // Autoriser le clic sur tout le drop-zone pour ouvrir le sélecteur
+            dropZone.addEventListener('click', (e) => {
+                // Si on n'a pas cliqué directement sur le bouton (car le bouton a son propre listener), on déclenche le bouton
+                if (e.target.id !== 'select-files-btn') {
+                    document.getElementById('file-input').click();
+                }
+            });
+
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                 dropZone.addEventListener(eventName, e => {
                     e.preventDefault();
@@ -457,13 +450,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     draggedItem.classList.remove('dragging');
                     draggedItem = null;
                 }
-                // Update state order
                 const newFileOrder = [];
                 fileList.querySelectorAll('.file-list-item').forEach(item => {
                     const originalIndex = parseInt(item.dataset.originalIndex, 10);
                     newFileOrder.push(state.selectedFiles[originalIndex]);
                 });
-                // Update state silently without re-rendering full list to keep DOM stable
                 state.selectedFiles = newFileOrder;
             });
         }
@@ -474,16 +465,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleAppClick = (e) => {
         const target = e.target;
         
-        // File Selection
-        if (target.id === 'select-files-btn') document.getElementById('file-input').click();
+        if (target.id === 'select-files-btn') {
+            e.stopPropagation(); // Empêche le double clic si dropzone a aussi un event
+            document.getElementById('file-input').click();
+        }
         
-        // Reset
         if (target.id === 'reset-btn' || target.id === 'reset-btn-results') resetApp();
         
-        // Conversion
         if (target.id === 'start-conversion-btn') startConversion();
         
-        // Download (Manuel)
         if (target.closest('#download-btn')) {
             const btn = target.closest('#download-btn');
             btn.classList.add('bounce-click');
@@ -500,7 +490,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // Remove file
         const removeBtn = target.closest('.remove-file-btn');
         if (removeBtn) {
             removeFile(parseInt(removeBtn.dataset.index, 10));
@@ -563,31 +552,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             if (!window.PDFLib || !window.pdfjsLib) {
-                throw new Error("Bibliothèques externes non chargées. Actualisez la page.");
+                throw new Error("Bibliothèques manquantes. Actualisez.");
             }
             if (window.pdfjsLib.GlobalWorkerOptions.workerSrc === '') {
                 window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
             }
             
             const { targetFormat, mergeFiles } = state.settings;
-
-            // MODIFICATION ICI: Correction de la logique de routage
             const isSingleFile = state.selectedFiles.length === 1;
             let isPdfToImage = false;
             
             if (isSingleFile) {
                 const file = state.selectedFiles[0];
                 const ext = file.name.split('.').pop().toLowerCase();
-                // Si c'est un PDF et qu'on veut une image, cela génère potentiellement plusieurs images (pages)
-                // Donc on ne doit pas utiliser processSingleOutput
                 if (ext === 'pdf' && targetFormat !== 'pdf') {
                     isPdfToImage = true;
                 }
             }
 
-            // On utilise processSingleOutput si :
-            // 1. On fusionne plusieurs fichiers en un seul PDF.
-            // 2. C'est un fichier unique, MAIS ce n'est pas un PDF vers Image.
             const isMerging = (!isSingleFile && targetFormat === 'pdf' && mergeFiles);
             
             if ((isSingleFile && !isPdfToImage) || isMerging) {
@@ -597,7 +579,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             setState({ processingMessage: 'Conversion terminée !', processingProgress: 100, isProcessing: false });
-            // On attend un tout petit peu avant d'afficher les résultats pour que l'utilisateur voit le 100%
             setTimeout(() => setState({ currentStep: 'results' }), 800);
         } catch (error) {
             console.error('Erreur:', error);
@@ -607,15 +588,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function processSingleOutput() {
         const { PDFDocument } = window.PDFLib;
-        const pdfjsLib = window.pdfjsLib;
         let localFailedFiles = [];
         let singleResult = null;
         
-        setState({ processingProgress: 50, processingMessage: `Traitement en cours...` });
+        setState({ processingProgress: 50, processingMessage: `Traitement...` });
         
         try {
             if (state.settings.targetFormat === 'pdf' && state.settings.mergeFiles && state.selectedFiles.length > 1) {
-                // Merging multiple files
                 const finalPdfDoc = await PDFDocument.create();
                 const A4_WIDTH = 595.28, A4_HEIGHT = 841.89;
                 for (let i = 0; i < state.selectedFiles.length; i++) {
@@ -642,10 +621,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 }
-                if (finalPdfDoc.getPageCount() === 0) throw new Error("Aucun fichier valide n'a pu être traité.");
+                if (finalPdfDoc.getPageCount() === 0) throw new Error("Aucune page valide.");
                 const pdfBytes = await finalPdfDoc.save();
                 singleResult = { blob: new Blob([pdfBytes], { type: 'application/pdf' }), fileName: 'document_fusionne.pdf' };
-            } else { // Single file conversion
+            } else { 
                 const file = state.selectedFiles[0];
                 const fileBytes = await file.arrayBuffer();
                 const fileType = file.name.split('.').pop().toLowerCase().replace('jpeg','jpg');
@@ -663,12 +642,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             singleResult = { blob: new Blob([pdfBytes], {type: 'application/pdf'}), fileName: `${baseName}.pdf`};
                         }
                     }
-                } else { // Target is Image
+                } else { 
                     const mimeType = `image/${state.settings.targetFormat === 'jpg' ? 'jpeg' : 'png'}`;
-                    if (fileType === 'pdf') { // This case should be handled by multi-download logic
-                         // Fallback just in case
+                    if (fileType === 'pdf') { 
                         throw new Error("PDF vers Image est traité comme un traitement multiple.");
-                    } else { // Image to Image
+                    } else { 
                         let blob;
                         let fileName = `${baseName}.${state.settings.targetFormat}`;
                         if (fileType === state.settings.targetFormat) {
@@ -698,11 +676,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         setState({ failedFiles: localFailedFiles });
-        if (!singleResult) throw new Error("Le fichier n'a pas pu être traité.");
+        if (!singleResult) throw new Error("Echec du traitement.");
         setState({ convertedFile: singleResult });
     }
 
-    // Revised to prepare files for download rather than triggering immediately inside the loop
     async function processMultipleOutputs() {
         const { PDFDocument } = window.PDFLib;
         const pdfjsLib = window.pdfjsLib;
@@ -711,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (let i = 0; i < state.selectedFiles.length; i++) {
             const file = state.selectedFiles[i];
-            setState({ processingProgress: Math.round(((i + 1) / state.selectedFiles.length) * 95), processingMessage: `Conversion de ${file.name}...` });
+            setState({ processingProgress: Math.round(((i + 1) / state.selectedFiles.length) * 95), processingMessage: `Fichier ${i+1}/${state.selectedFiles.length}...` });
             try {
                 const fileBytes = await file.arrayBuffer();
                 const fileType = file.name.split('.').pop().toLowerCase().replace('jpeg', 'jpg');
@@ -720,7 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (state.settings.targetFormat === 'pdf') {
                     if (fileType === 'pdf') {
                          preparedFiles.push({blob: new Blob([fileBytes], {type: 'application/pdf'}), fileName: file.name});
-                    } else { // Image to PDF
+                    } else { 
                         const pdfDoc = await PDFDocument.create();
                         const image = (fileType === 'png') ? await pdfDoc.embedPng(fileBytes) : await pdfDoc.embedJpg(fileBytes);
                         if(image.width > 0 && image.height > 0) {
@@ -729,7 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             preparedFiles.push({blob: new Blob([data], {type: 'application/pdf'}), fileName: `${baseName}.pdf`});
                         }
                     }
-                } else { // Target is JPG or PNG
+                } else { 
                     const mimeType = `image/${state.settings.targetFormat === 'jpg' ? 'jpeg' : 'png'}`;
                     if (fileType === 'pdf') {
                         const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(fileBytes) }).promise;
@@ -742,7 +719,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, 0.9));
                             preparedFiles.push({ blob, fileName: `${baseName}_page_${p}.${state.settings.targetFormat}`});
                         }
-                    } else { // Image to Image
+                    } else { 
                         let blob;
                         let fileName = `${baseName}.${state.settings.targetFormat}`;
                         if (fileType === state.settings.targetFormat) {
@@ -769,18 +746,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         setState({ failedFiles: localFailedFiles });
-
         if (preparedFiles.length === 0 && localFailedFiles.length === state.selectedFiles.length) {
-            throw new Error("Aucun fichier valide n'a pu être traité.");
+            throw new Error("Aucun fichier valide.");
         }
-        
-        // Store prepared files to be downloaded in the Result step
         setState({ convertedFile: { multiDownload: true, files: preparedFiles } });
     }
 
-    // --- Initial Render ---
     render();
 });
 </script>
-</body>
-</html>
