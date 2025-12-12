@@ -13,7 +13,7 @@ Available on my website for greater convenience:
 
 ### ⬇️ Download
 Get the source code or the latest release:  
-👉 **[Download v1.3](https://github.com/anonymousxptdr360/secure-local-converter/releases/tag/1.3)**
+👉 **[Download v1.4](https://github.com/anonymousxptdr360/secure-local-converter/releases/tag/1.4)**
 
 ---
 
