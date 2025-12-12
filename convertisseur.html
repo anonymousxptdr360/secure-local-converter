@@ -694,7 +694,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const processMergeToPDF = async () => {
         const { PDFDocument } = window.PDFLib;
         const finalPdfDoc = await PDFDocument.create();
-        const A4 = [595.28, 841.89];
+        const A4_PORTRAIT = [595.28, 841.89];
+        const A4_LANDSCAPE = [841.89, 595.28];
 
         for (let i = 0; i < state.selectedFiles.length; i++) {
             setState({ processingProgress: Math.round((i / state.selectedFiles.length) * 90), processingMessage: `Traitement fichier ${i+1}...` });
@@ -713,12 +714,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         const embeddedPages = await finalPdfDoc.embedPdf(srcDoc, indices);
                         embeddedPages.forEach(embeddedPage => {
                             const { width, height } = embeddedPage;
-                            const newPage = finalPdfDoc.addPage(A4);
-                            const ratio = Math.min(A4[0]/width, A4[1]/height);
+                            
+                            // Détection de l'orientation : Si la page source est plus large que haute, on utilise A4 Paysage
+                            const isLandscape = width > height;
+                            const targetDims = isLandscape ? A4_LANDSCAPE : A4_PORTRAIT;
+                            
+                            const newPage = finalPdfDoc.addPage(targetDims);
+                            
+                            // Calcul du ratio pour "Fit to Page" (contenir)
+                            const ratio = Math.min(targetDims[0] / width, targetDims[1] / height);
+                            
                             // Centrer et redimensionner
                             newPage.drawPage(embeddedPage, {
-                                x: (A4[0] - width * ratio) / 2,
-                                y: (A4[1] - height * ratio) / 2,
+                                x: (targetDims[0] - width * ratio) / 2,
+                                y: (targetDims[1] - height * ratio) / 2,
                                 width: width * ratio,
                                 height: height * ratio
                             });
@@ -737,14 +746,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (file.type === 'image/jpeg') image = await finalPdfDoc.embedJpg(buffer);
                 else image = await finalPdfDoc.embedPng(buffer); // Support PNG
 
-                const pageDims = state.settings.standardizeA4 ? A4 : [image.width, image.height];
+                const isLandscape = image.width > image.height;
+                // Adaptation de l'orientation A4
+                let pageDims;
+                if(state.settings.standardizeA4) {
+                     pageDims = isLandscape ? A4_LANDSCAPE : A4_PORTRAIT;
+                } else {
+                     pageDims = [image.width, image.height];
+                }
+
                 const page = finalPdfDoc.addPage(pageDims);
                 
                 if(state.settings.standardizeA4) {
-                    const ratio = Math.min(A4[0]/image.width, A4[1]/image.height);
+                    const ratio = Math.min(pageDims[0]/image.width, pageDims[1]/image.height);
                     page.drawImage(image, {
-                        x: (A4[0] - image.width * ratio) / 2,
-                        y: (A4[1] - image.height * ratio) / 2,
+                        x: (pageDims[0] - image.width * ratio) / 2,
+                        y: (pageDims[1] - image.height * ratio) / 2,
                         width: image.width * ratio,
                         height: image.height * ratio
                     });
